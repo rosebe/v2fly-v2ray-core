@@ -90,8 +90,8 @@ func (c *ClientSession) EncodeRequestHeader(header *protocol.RequestHeader, writ
 	common.Must(buffer.WriteByte(c.responseHeader))
 	common.Must(buffer.WriteByte(byte(header.Option)))
 
-	padingLen := dice.Roll(16)
-	security := byte(padingLen<<4) | byte(header.Security)
+	paddingLen := dice.Roll(16)
+	security := byte(paddingLen<<4) | byte(header.Security)
 	common.Must2(buffer.Write([]byte{security, byte(0), byte(header.Command)}))
 
 	if header.Command != protocol.RequestCommandMux {
@@ -100,8 +100,8 @@ func (c *ClientSession) EncodeRequestHeader(header *protocol.RequestHeader, writ
 		}
 	}
 
-	if padingLen > 0 {
-		common.Must2(buffer.ReadFullFrom(rand.Reader, int32(padingLen)))
+	if paddingLen > 0 {
+		common.Must2(buffer.ReadFullFrom(rand.Reader, int32(paddingLen)))
 	}
 
 	{
@@ -207,7 +207,7 @@ func (c *ClientSession) DecodeResponseHeader(reader io.Reader) (*protocol.Respon
 		}
 		if decryptedResponseHeaderLengthBinaryBuffer, err := aeadResponseHeaderLengthEncryptionAEAD.Open(nil, aeadResponseHeaderLengthEncryptionIV, aeadEncryptedResponseHeaderLength[:], nil); err != nil {
 			return nil, newError("Failed To Decrypt Length").Base(err)
-		} else {
+		} else { // nolint: golint
 			common.Must(binary.Read(bytes.NewReader(decryptedResponseHeaderLengthBinaryBuffer), binary.BigEndian, &decryptedResponseHeaderLengthBinaryDeserializeBuffer))
 			decryptedResponseHeaderLength = int(decryptedResponseHeaderLengthBinaryDeserializeBuffer)
 		}
@@ -226,7 +226,7 @@ func (c *ClientSession) DecodeResponseHeader(reader io.Reader) (*protocol.Respon
 
 		if decryptedResponseHeaderBuffer, err := aeadResponseHeaderPayloadEncryptionAEAD.Open(nil, aeadResponseHeaderPayloadEncryptionIV, encryptedResponseHeaderBuffer, nil); err != nil {
 			return nil, newError("Failed To Decrypt Payload").Base(err)
-		} else {
+		} else { // nolint: golint
 			c.responseReader = bytes.NewReader(decryptedResponseHeaderBuffer)
 		}
 	}
