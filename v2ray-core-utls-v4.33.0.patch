@@ -228,7 +228,7 @@ index 7545f853..9aaafeac 100644
  
  	host := dest.NetAddr()
 diff --git a/transport/internet/websocket/hub.go b/transport/internet/websocket/hub.go
-index 0439a05d..3b81e706 100644
+index 0439a05d..6c3870b0 100644
 --- a/transport/internet/websocket/hub.go
 +++ b/transport/internet/websocket/hub.go
 @@ -9,7 +9,8 @@ import (
@@ -241,21 +241,3 @@ index 0439a05d..3b81e706 100644
  	"v2ray.com/core/common"
  	"v2ray.com/core/common/net"
  	http_proto "v2ray.com/core/common/protocol/http"
-@@ -78,7 +79,7 @@ func ListenWS(ctx context.Context, address net.Address, port net.Port, streamSet
- 	}
- 	var listener net.Listener
- 	var err error
--	if port == net.Port(0) { // unix
-+	if port == net.Port(0) { //unix
- 		listener, err = internet.ListenSystem(ctx, &net.UnixAddr{
- 			Name: address.Domain(),
- 			Net:  "unix",
-@@ -91,7 +92,7 @@ func ListenWS(ctx context.Context, address net.Address, port net.Port, streamSet
- 		if locker != nil {
- 			l.locker = locker.(*internet.FileLocker)
- 		}
--	} else { // tcp
-+	} else { //tcp
- 		listener, err = internet.ListenSystem(ctx, &net.TCPAddr{
- 			IP:   address.IP(),
- 			Port: int(port),
