@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-
 	"v2ray.com/core"
 	"v2ray.com/core/common"
 	"v2ray.com/core/features/routing"
@@ -54,7 +53,7 @@ func (s *routingServer) SubscribeRoutingStats(request *SubscribeRoutingStatsRequ
 	if err != nil {
 		return err
 	}
-	defer stats.UnsubscribeClosableChannel(s.routingStats, subscriber) // nolint: errcheck
+	defer stats.UnsubscribeClosableChannel(s.routingStats, subscriber)
 	for {
 		select {
 		case value, ok := <-subscriber:

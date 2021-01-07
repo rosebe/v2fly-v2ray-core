@@ -27,6 +27,7 @@ type Listener struct {
 	handler internet.ConnHandler
 	local   net.Addr
 	config  *Config
+	locker  *internet.FileLocker // for unix domain socket
 }
 
 func (l *Listener) Addr() net.Addr {
@@ -34,6 +35,9 @@ func (l *Listener) Addr() net.Addr {
 }
 
 func (l *Listener) Close() error {
+	if l.locker != nil {
+		l.locker.Release()
+	}
 	return l.server.Close()
 }
 
@@ -83,9 +87,12 @@ func (l *Listener) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 		}
 	}
 
-	forwardedAddrs := http_proto.ParseXForwardedFor(request.Header)
-	if len(forwardedAddrs) > 0 && forwardedAddrs[0].Family().IsIP() {
-		remoteAddr.(*net.TCPAddr).IP = forwardedAddrs[0].IP()
+	forwardedAddress := http_proto.ParseXForwardedFor(request.Header)
+	if len(forwardedAddress) > 0 && forwardedAddress[0].Family().IsIP() {
+		remoteAddr = &net.TCPAddr{
+			IP:   forwardedAddress[0].IP(),
+			Port: 0,
+		}
 	}
 
 	done := done.New()
@@ -102,13 +109,25 @@ func (l *Listener) ServeHTTP(writer http.ResponseWriter, request *http.Request) 
 
 func Listen(ctx context.Context, address net.Address, port net.Port, streamSettings *internet.MemoryStreamConfig, handler internet.ConnHandler) (internet.Listener, error) {
 	httpSettings := streamSettings.ProtocolSettings.(*Config)
-	listener := &Listener{
-		handler: handler,
-		local: &net.TCPAddr{
-			IP:   address.IP(),
-			Port: int(port),
-		},
-		config: httpSettings,
+	var listener *Listener
+	if port == net.Port(0) { // unix
+		listener = &Listener{
+			handler: handler,
+			local: &net.UnixAddr{
+				Name: address.Domain(),
+				Net:  "unix",
+			},
+			config: httpSettings,
+		}
+	} else { // tcp
+		listener = &Listener{
+			handler: handler,
+			local: &net.TCPAddr{
+				IP:   address.IP(),
+				Port: int(port),
+			},
+			config: httpSettings,
+		}
 	}
 
 	var server *http.Server
@@ -130,25 +149,47 @@ func Listen(ctx context.Context, address net.Address, port net.Port, streamSetti
 		}
 	}
 
+	if streamSettings.SocketSettings != nil && streamSettings.SocketSettings.AcceptProxyProtocol {
+		newError("accepting PROXY protocol").AtWarning().WriteToLog(session.ExportIDToError(ctx))
+	}
+
 	listener.server = server
 	go func() {
-		tcpListener, err := internet.ListenSystem(ctx, &net.TCPAddr{
-			IP:   address.IP(),
-			Port: int(port),
-		}, streamSettings.SocketSettings)
-		if err != nil {
-			newError("failed to listen on", address, ":", port).Base(err).WriteToLog(session.ExportIDToError(ctx))
-			return
-		}
-		if config == nil {
-			err = server.Serve(tcpListener)
+		var streamListener net.Listener
+		var err error
+		if port == net.Port(0) { // unix
+			streamListener, err = internet.ListenSystem(ctx, &net.UnixAddr{
+				Name: address.Domain(),
+				Net:  "unix",
+			}, streamSettings.SocketSettings)
 			if err != nil {
-				newError("stoping serving H2C").Base(err).WriteToLog(session.ExportIDToError(ctx))
+				newError("failed to listen on ", address).Base(err).AtError().WriteToLog(session.ExportIDToError(ctx))
+				return
+			}
+			locker := ctx.Value(address.Domain())
+			if locker != nil {
+				listener.locker = locker.(*internet.FileLocker)
+			}
+		} else { // tcp
+			streamListener, err = internet.ListenSystem(ctx, &net.TCPAddr{
+				IP:   address.IP(),
+				Port: int(port),
+			}, streamSettings.SocketSettings)
+			if err != nil {
+				newError("failed to listen on ", address, ":", port).Base(err).AtError().WriteToLog(session.ExportIDToError(ctx))
+				return
+			}
+		}
+
+		if config == nil {
+			err = server.Serve(streamListener)
+			if err != nil {
+				newError("stopping serving H2C").Base(err).WriteToLog(session.ExportIDToError(ctx))
 			}
 		} else {
-			err = server.ServeTLS(tcpListener, "", "")
+			err = server.ServeTLS(streamListener, "", "")
 			if err != nil {
-				newError("stoping serving TLS").Base(err).WriteToLog(session.ExportIDToError(ctx))
+				newError("stopping serving TLS").Base(err).WriteToLog(session.ExportIDToError(ctx))
 			}
 		}
 	}()
