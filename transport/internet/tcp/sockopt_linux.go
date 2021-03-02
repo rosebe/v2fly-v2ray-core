@@ -6,11 +6,11 @@ package tcp
 import (
 	"syscall"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/transport/internet"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
 )
 
-const SO_ORIGINAL_DST = 80
+const SO_ORIGINAL_DST = 80 // nolint: golint,stylecheck
 
 func GetOriginalDestination(conn internet.Connection) (net.Destination, error) {
 	sysrawconn, f := conn.(syscall.Conn)

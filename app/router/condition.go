@@ -8,9 +8,9 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/strmatcher"
-	"v2ray.com/core/features/routing"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/strmatcher"
+	"github.com/v2fly/v2ray-core/v4/features/routing"
 )
 
 type Condition interface {
@@ -66,6 +66,24 @@ func domainToMatcher(domain *Domain) (strmatcher.Matcher, error) {
 
 type DomainMatcher struct {
 	matchers strmatcher.IndexMatcher
+}
+
+func NewACAutomatonDomainMatcher(domains []*Domain) (*DomainMatcher, error) {
+	g := strmatcher.NewACAutomatonMatcherGroup()
+	for _, d := range domains {
+		matcherType, f := matcherTypeMap[d.Type]
+		if !f {
+			return nil, newError("unsupported domain type", d.Type)
+		}
+		_, err := g.AddPattern(d.Value, matcherType)
+		if err != nil {
+			return nil, err
+		}
+	}
+	g.Build()
+	return &DomainMatcher{
+		matchers: g,
+	}, nil
 }
 
 func NewDomainMatcher(domains []*Domain) (*DomainMatcher, error) {
@@ -154,9 +172,8 @@ func NewPortMatcher(list *net.PortList, onSource bool) *PortMatcher {
 func (v *PortMatcher) Apply(ctx routing.Context) bool {
 	if v.onSource {
 		return v.port.Contains(ctx.GetSourcePort())
-	} else {
-		return v.port.Contains(ctx.GetTargetPort())
 	}
+	return v.port.Contains(ctx.GetTargetPort())
 }
 
 type NetworkMatcher struct {

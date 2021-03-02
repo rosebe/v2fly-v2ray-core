@@ -2,9 +2,11 @@ package control
 
 import (
 	"flag"
-	"github.com/xiaokangwang/VSign/signerVerify"
 	"os"
-	"v2ray.com/core/common"
+
+	"github.com/v2fly/VSign/signerVerify"
+
+	"github.com/v2fly/v2ray-core/v4/common"
 )
 
 type VerifyCommand struct{}

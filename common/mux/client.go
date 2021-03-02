@@ -6,18 +6,18 @@ import (
 	"sync"
 	"time"
 
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/errors"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/common/signal/done"
-	"v2ray.com/core/common/task"
-	"v2ray.com/core/proxy"
-	"v2ray.com/core/transport"
-	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/pipe"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/errors"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/common/signal/done"
+	"github.com/v2fly/v2ray-core/v4/common/task"
+	"github.com/v2fly/v2ray-core/v4/proxy"
+	"github.com/v2fly/v2ray-core/v4/transport"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
+	"github.com/v2fly/v2ray-core/v4/transport/pipe"
 )
 
 type ClientManager struct {
@@ -214,8 +214,8 @@ func (m *ClientWorker) monitor() {
 		select {
 		case <-m.done.Wait():
 			m.sessionManager.Close()
-			common.Close(m.link.Writer)     // nolint: errcheck
-			common.Interrupt(m.link.Reader) // nolint: errcheck
+			common.Close(m.link.Writer)
+			common.Interrupt(m.link.Reader)
 			return
 		case <-timer.C:
 			size := m.sessionManager.Size()
@@ -247,8 +247,8 @@ func fetchInput(ctx context.Context, s *Session, output buf.Writer) {
 	}
 	s.transferType = transferType
 	writer := NewWriter(s.ID, dest, output, transferType)
-	defer s.Close()      // nolint: errcheck
-	defer writer.Close() // nolint: errcheck
+	defer s.Close()
+	defer writer.Close()
 
 	newError("dispatching request to ", dest).WriteToLog(session.ExportIDToError(ctx))
 	if err := writeFirstPayload(s.input, writer); err != nil {

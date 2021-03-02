@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/golang/protobuf/proto" // nolint: staticcheck
+	"github.com/golang/protobuf/proto"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
-	"v2ray.com/core/proxy/trojan"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/serial"
+	"github.com/v2fly/v2ray-core/v4/proxy/trojan"
 )
 
 // TrojanServerTarget is configuration of a single trojan server
@@ -96,11 +96,6 @@ type TrojanServerConfig struct {
 // Build implements Buildable
 func (c *TrojanServerConfig) Build() (proto.Message, error) {
 	config := new(trojan.ServerConfig)
-
-	if len(c.Clients) == 0 {
-		return nil, newError("No trojan user settings.")
-	}
-
 	config.Users = make([]*protocol.User, len(c.Clients))
 	for idx, rawUser := range c.Clients {
 		user := new(protocol.User)
@@ -149,8 +144,8 @@ func (c *TrojanServerConfig) Build() (proto.Message, error) {
 				switch fb.Dest[0] {
 				case '@', '/':
 					fb.Type = "unix"
-					if fb.Dest[0] == '@' && len(fb.Dest) > 1 && fb.Dest[1] == '@' && runtime.GOOS == "linux" {
-						fullAddr := make([]byte, len(syscall.RawSockaddrUnix{}.Path)) // may need padding to work in front of haproxy
+					if fb.Dest[0] == '@' && len(fb.Dest) > 1 && fb.Dest[1] == '@' && (runtime.GOOS == "linux" || runtime.GOOS == "android") {
+						fullAddr := make([]byte, len(syscall.RawSockaddrUnix{}.Path)) // may need padding to work with haproxy
 						copy(fullAddr, fb.Dest[1:])
 						fb.Dest = string(fullAddr)
 					}

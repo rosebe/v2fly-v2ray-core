@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	. "v2ray.com/core/app/stats"
-	"v2ray.com/core/common"
-	"v2ray.com/core/features/stats"
+	. "github.com/v2fly/v2ray-core/v4/app/stats"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/features/stats"
 )
 
 func TestStatsChannel(t *testing.T) {
@@ -388,7 +388,7 @@ func TestStatsChannelConcurrency(t *testing.T) {
 			if ok {
 				errCh <- fmt.Sprint("unexpected receiving: ", v)
 			} else {
-				errCh <- fmt.Sprint("unexpected closing of channel")
+				errCh <- "unexpected closing of channel"
 			}
 		default:
 		}

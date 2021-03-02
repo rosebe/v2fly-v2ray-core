@@ -13,20 +13,20 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"v2ray.com/core"
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/bytespool"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/retry"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/common/signal"
-	"v2ray.com/core/common/task"
-	"v2ray.com/core/features/policy"
-	"v2ray.com/core/transport"
-	"v2ray.com/core/transport/internet"
-	"v2ray.com/core/transport/internet/tls"
+	core "github.com/v2fly/v2ray-core/v4"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/bytespool"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/retry"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/common/signal"
+	"github.com/v2fly/v2ray-core/v4/common/task"
+	"github.com/v2fly/v2ray-core/v4/features/policy"
+	"github.com/v2fly/v2ray-core/v4/transport"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
+	"github.com/v2fly/v2ray-core/v4/transport/internet/tls"
 )
 
 type Client struct {
@@ -97,6 +97,12 @@ func (c *Client) Process(ctx context.Context, link *transport.Link, dialer inter
 
 		netConn, err := setUpHTTPTunnel(ctx, dest, targetAddr, user, dialer, firstPayload)
 		if netConn != nil {
+			if _, ok := netConn.(*http2Conn); !ok {
+				if _, err := netConn.Write(firstPayload); err != nil {
+					netConn.Close()
+					return err
+				}
+			}
 			conn = internet.Connection(netConn)
 		}
 		return err
@@ -159,16 +165,12 @@ func setUpHTTPTunnel(ctx context.Context, dest net.Destination, target string, u
 			return nil, err
 		}
 
-		if _, err := rawConn.Write(firstPayload); err != nil {
-			rawConn.Close()
-			return nil, err
-		}
-
 		resp, err := http.ReadResponse(bufio.NewReader(rawConn), req)
 		if err != nil {
 			rawConn.Close()
 			return nil, err
 		}
+		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			rawConn.Close()
@@ -190,7 +192,7 @@ func setUpHTTPTunnel(ctx context.Context, dest net.Destination, target string, u
 			wg.Done()
 		}()
 
-		resp, err := h2clientConn.RoundTrip(req)
+		resp, err := h2clientConn.RoundTrip(req) // nolint: bodyclose
 		if err != nil {
 			rawConn.Close()
 			return nil, err

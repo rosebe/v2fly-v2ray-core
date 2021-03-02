@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"time"
 
-	"v2ray.com/core/common/platform"
-	"v2ray.com/core/features"
+	"github.com/v2fly/v2ray-core/v4/common/platform"
+	"github.com/v2fly/v2ray-core/v4/features"
 )
 
 // Timeout contains limits for connection timeout.
@@ -117,8 +117,8 @@ func defaultBufferPolicy() Buffer {
 func SessionDefault() Session {
 	return Session{
 		Timeouts: Timeout{
-			//Align Handshake timeout with nginx client_header_timeout
-			//So that this value will not indicate server identity
+			// Align Handshake timeout with nginx client_header_timeout
+			// So that this value will not indicate server identity
 			Handshake:      time.Second * 60,
 			ConnectionIdle: time.Second * 300,
 			UplinkOnly:     time.Second * 1,

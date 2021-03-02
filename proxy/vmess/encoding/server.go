@@ -14,19 +14,20 @@ import (
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/bitmask"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/crypto"
-	"v2ray.com/core/common/dice"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/task"
-	"v2ray.com/core/proxy/vmess"
-	vmessaead "v2ray.com/core/proxy/vmess/aead"
+
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/bitmask"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/crypto"
+	"github.com/v2fly/v2ray-core/v4/common/dice"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/task"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess"
+	vmessaead "github.com/v2fly/v2ray-core/v4/proxy/vmess/aead"
 )
 
-type sessionId struct {
+type sessionID struct {
 	user  [16]byte
 	key   [16]byte
 	nonce [16]byte
@@ -35,14 +36,14 @@ type sessionId struct {
 // SessionHistory keeps track of historical session ids, to prevent replay attacks.
 type SessionHistory struct {
 	sync.RWMutex
-	cache map[sessionId]time.Time
+	cache map[sessionID]time.Time
 	task  *task.Periodic
 }
 
 // NewSessionHistory creates a new SessionHistory object.
 func NewSessionHistory() *SessionHistory {
 	h := &SessionHistory{
-		cache: make(map[sessionId]time.Time, 128),
+		cache: make(map[sessionID]time.Time, 128),
 	}
 	h.task = &task.Periodic{
 		Interval: time.Second * 30,
@@ -56,7 +57,7 @@ func (h *SessionHistory) Close() error {
 	return h.task.Close()
 }
 
-func (h *SessionHistory) addIfNotExits(session sessionId) bool {
+func (h *SessionHistory) addIfNotExits(session sessionID) bool {
 	h.Lock()
 
 	if expire, found := h.cache[session]; found && expire.After(time.Now()) {
@@ -87,7 +88,7 @@ func (h *SessionHistory) removeExpiredEntries() error {
 	}
 
 	if len(h.cache) == 0 {
-		h.cache = make(map[sessionId]time.Time, 128)
+		h.cache = make(map[sessionID]time.Time, 128)
 	}
 
 	return nil
@@ -118,6 +119,11 @@ func NewServerSession(validator *vmess.TimedUserValidator, sessionHistory *Sessi
 	}
 }
 
+// SetAEADForced sets isAEADForced for a ServerSession.
+func (s *ServerSession) SetAEADForced(isAEADForced bool) {
+	s.isAEADForced = isAEADForced
+}
+
 func parseSecurityType(b byte) protocol.SecurityType {
 	if _, f := protocol.SecurityType_name[int32(b)]; f {
 		st := protocol.SecurityType(b)
@@ -141,7 +147,7 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 	readSizeRemain := DrainSize
 
 	drainConnection := func(e error) error {
-		//We read a deterministic generated length of data before closing the connection to offset padding read pattern
+		// We read a deterministic generated length of data before closing the connection to offset padding read pattern
 		readSizeRemain -= int(buffer.Len())
 		if readSizeRemain > 0 {
 			err := s.DrainConnN(reader, readSizeRemain)
@@ -169,33 +175,40 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 	var fixedSizeAuthID [16]byte
 	copy(fixedSizeAuthID[:], buffer.Bytes())
 
-	if foundAEAD {
+	switch {
+	case foundAEAD:
 		vmessAccount = user.Account.(*vmess.MemoryAccount)
 		var fixedSizeCmdKey [16]byte
 		copy(fixedSizeCmdKey[:], vmessAccount.ID.CmdKey())
-		aeadData, shouldDrain, errorReason, bytesRead := vmessaead.OpenVMessAEADHeader(fixedSizeCmdKey, fixedSizeAuthID, reader)
+		aeadData, shouldDrain, bytesRead, errorReason := vmessaead.OpenVMessAEADHeader(fixedSizeCmdKey, fixedSizeAuthID, reader)
 		if errorReason != nil {
 			if shouldDrain {
 				readSizeRemain -= bytesRead
 				return nil, drainConnection(newError("AEAD read failed").Base(errorReason))
-			} else {
-				return nil, drainConnection(newError("AEAD read failed, drain skiped").Base(errorReason))
 			}
+			return nil, drainConnection(newError("AEAD read failed, drain skipped").Base(errorReason))
 		}
 		decryptor = bytes.NewReader(aeadData)
 		s.isAEADRequest = true
-	} else if !s.isAEADForced && errorAEAD == vmessaead.ErrNotFound {
+
+	case errorAEAD == vmessaead.ErrNotFound:
 		userLegacy, timestamp, valid, userValidationError := s.userValidator.Get(buffer.Bytes())
 		if !valid || userValidationError != nil {
 			return nil, drainConnection(newError("invalid user").Base(userValidationError))
+		}
+		if s.isAEADForced {
+			return nil, drainConnection(newError("invalid user: VMessAEAD is enforced and a non VMessAEAD connection is received. You can still disable this security feature with environment variable v2ray.vmess.aead.forced = false . You will not be able to enable legacy header workaround in the future."))
+		} else {
+			newError("Critical Warning: potentially invalid user: a non VMessAEAD connection is received. From 2022 Jan 1st, this kind of connection will be rejected by default. You should update or replace your client software now. ").AtWarning().WriteToLog()
 		}
 		user = userLegacy
 		iv := hashTimestamp(md5.New(), timestamp)
 		vmessAccount = userLegacy.Account.(*vmess.MemoryAccount)
 
-		aesStream := crypto.NewAesDecryptionStream(vmessAccount.ID.CmdKey(), iv[:])
+		aesStream := crypto.NewAesDecryptionStream(vmessAccount.ID.CmdKey(), iv)
 		decryptor = crypto.NewCryptionReader(aesStream, reader)
-	} else {
+
+	default:
 		return nil, drainConnection(newError("invalid user").Base(errorAEAD))
 	}
 
@@ -212,7 +225,7 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 
 	copy(s.requestBodyIV[:], buffer.BytesRange(1, 17))   // 16 bytes
 	copy(s.requestBodyKey[:], buffer.BytesRange(17, 33)) // 16 bytes
-	var sid sessionId
+	var sid sessionID
 	copy(sid.user[:], vmessAccount.ID.Bytes())
 	sid.key = s.requestBodyKey
 	sid.nonce = s.requestBodyIV
@@ -223,15 +236,13 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 				return nil, drainConnection(newError("duplicated session id, possibly under replay attack, and failed to taint userHash").Base(drainErr))
 			}
 			return nil, drainConnection(newError("duplicated session id, possibly under replay attack, userHash tainted"))
-		} else {
-			return nil, newError("duplicated session id, possibly under replay attack, but this is a AEAD request")
 		}
-
+		return nil, newError("duplicated session id, possibly under replay attack, but this is a AEAD request")
 	}
 
 	s.responseHeader = buffer.Byte(33)             // 1 byte
 	request.Option = bitmask.Byte(buffer.Byte(34)) // 1 byte
-	padingLen := int(buffer.Byte(35) >> 4)
+	paddingLen := int(buffer.Byte(35) >> 4)
 	request.Security = parseSecurityType(buffer.Byte(35) & 0x0F)
 	// 1 bytes reserved
 	request.Command = protocol.RequestCommand(buffer.Byte(37))
@@ -240,6 +251,7 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 	case protocol.RequestCommandMux:
 		request.Address = net.DomainAddress("v1.mux.cool")
 		request.Port = 0
+
 	case protocol.RequestCommandTCP, protocol.RequestCommandUDP:
 		if addr, port, err := addrParser.ReadAddressPort(buffer, decryptor); err == nil {
 			request.Address = addr
@@ -247,8 +259,8 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 		}
 	}
 
-	if padingLen > 0 {
-		if _, err := buffer.ReadFullFrom(decryptor, int32(padingLen)); err != nil {
+	if paddingLen > 0 {
+		if _, err := buffer.ReadFullFrom(decryptor, int32(paddingLen)); err != nil {
 			if !s.isAEADRequest {
 				burnErr := s.userValidator.BurnTaintFuse(fixedSizeAuthID[:])
 				if burnErr != nil {
@@ -283,12 +295,10 @@ func (s *ServerSession) DecodeRequestHeader(reader io.Reader) (*protocol.Request
 			if burnErr != nil {
 				Autherr = newError("invalid auth, can't taint legacy userHash").Base(burnErr)
 			}
-			//It is possible that we are under attack described in https://github.com/v2ray/v2ray-core/issues/2523
+			// It is possible that we are under attack described in https://github.com/v2ray/v2ray-core/issues/2523
 			return nil, drainConnection(Autherr)
-		} else {
-			return nil, newError("invalid auth, but this is a AEAD request")
 		}
-
+		return nil, newError("invalid auth, but this is a AEAD request")
 	}
 
 	if request.Address == nil {
@@ -327,8 +337,8 @@ func (s *ServerSession) DecodeRequestBody(request *protocol.RequestHeader, reade
 			}
 			return crypto.NewAuthenticationReader(auth, sizeParser, reader, protocol.TransferTypePacket, padding)
 		}
-
 		return buf.NewReader(reader)
+
 	case protocol.SecurityType_LEGACY:
 		aesStream := crypto.NewAesDecryptionStream(s.requestBodyKey[:], s.requestBodyIV[:])
 		cryptionReader := crypto.NewCryptionReader(aesStream, reader)
@@ -340,17 +350,17 @@ func (s *ServerSession) DecodeRequestBody(request *protocol.RequestHeader, reade
 			}
 			return crypto.NewAuthenticationReader(auth, sizeParser, cryptionReader, request.Command.TransferType(), padding)
 		}
-
 		return buf.NewReader(cryptionReader)
+
 	case protocol.SecurityType_AES128_GCM:
 		aead := crypto.NewAesGcm(s.requestBodyKey[:])
-
 		auth := &crypto.AEADAuthenticator{
 			AEAD:                    aead,
 			NonceGenerator:          GenerateChunkNonce(s.requestBodyIV[:], uint32(aead.NonceSize())),
 			AdditionalDataGenerator: crypto.GenerateEmptyBytes(),
 		}
 		return crypto.NewAuthenticationReader(auth, sizeParser, reader, request.Command.TransferType(), padding)
+
 	case protocol.SecurityType_CHACHA20_POLY1305:
 		aead, _ := chacha20poly1305.New(GenerateChacha20Poly1305Key(s.requestBodyKey[:]))
 
@@ -360,6 +370,7 @@ func (s *ServerSession) DecodeRequestBody(request *protocol.RequestHeader, reade
 			AdditionalDataGenerator: crypto.GenerateEmptyBytes(),
 		}
 		return crypto.NewAuthenticationReader(auth, sizeParser, reader, request.Command.TransferType(), padding)
+
 	default:
 		panic("Unknown security type.")
 	}
@@ -395,9 +406,8 @@ func (s *ServerSession) EncodeResponseHeader(header *protocol.ResponseHeader, wr
 	}
 
 	if s.isAEADRequest {
-
-		aeadResponseHeaderLengthEncryptionKey := vmessaead.KDF16(s.responseBodyKey[:], vmessaead.KDFSaltConst_AEADRespHeaderLenKey)
-		aeadResponseHeaderLengthEncryptionIV := vmessaead.KDF(s.responseBodyIV[:], vmessaead.KDFSaltConst_AEADRespHeaderLenIV)[:12]
+		aeadResponseHeaderLengthEncryptionKey := vmessaead.KDF16(s.responseBodyKey[:], vmessaead.KDFSaltConstAEADRespHeaderLenKey)
+		aeadResponseHeaderLengthEncryptionIV := vmessaead.KDF(s.responseBodyIV[:], vmessaead.KDFSaltConstAEADRespHeaderLenIV)[:12]
 
 		aeadResponseHeaderLengthEncryptionKeyAESBlock := common.Must2(aes.NewCipher(aeadResponseHeaderLengthEncryptionKey)).(cipher.Block)
 		aeadResponseHeaderLengthEncryptionAEAD := common.Must2(cipher.NewGCM(aeadResponseHeaderLengthEncryptionKeyAESBlock)).(cipher.AEAD)
@@ -411,8 +421,8 @@ func (s *ServerSession) EncodeResponseHeader(header *protocol.ResponseHeader, wr
 		AEADEncryptedLength := aeadResponseHeaderLengthEncryptionAEAD.Seal(nil, aeadResponseHeaderLengthEncryptionIV, aeadResponseHeaderLengthEncryptionBuffer.Bytes(), nil)
 		common.Must2(io.Copy(writer, bytes.NewReader(AEADEncryptedLength)))
 
-		aeadResponseHeaderPayloadEncryptionKey := vmessaead.KDF16(s.responseBodyKey[:], vmessaead.KDFSaltConst_AEADRespHeaderPayloadKey)
-		aeadResponseHeaderPayloadEncryptionIV := vmessaead.KDF(s.responseBodyIV[:], vmessaead.KDFSaltConst_AEADRespHeaderPayloadIV)[:12]
+		aeadResponseHeaderPayloadEncryptionKey := vmessaead.KDF16(s.responseBodyKey[:], vmessaead.KDFSaltConstAEADRespHeaderPayloadKey)
+		aeadResponseHeaderPayloadEncryptionIV := vmessaead.KDF(s.responseBodyIV[:], vmessaead.KDFSaltConstAEADRespHeaderPayloadIV)[:12]
 
 		aeadResponseHeaderPayloadEncryptionKeyAESBlock := common.Must2(aes.NewCipher(aeadResponseHeaderPayloadEncryptionKey)).(cipher.Block)
 		aeadResponseHeaderPayloadEncryptionAEAD := common.Must2(cipher.NewGCM(aeadResponseHeaderPayloadEncryptionKeyAESBlock)).(cipher.AEAD)
@@ -447,8 +457,8 @@ func (s *ServerSession) EncodeResponseBody(request *protocol.RequestHeader, writ
 			}
 			return crypto.NewAuthenticationWriter(auth, sizeParser, writer, protocol.TransferTypePacket, padding)
 		}
-
 		return buf.NewWriter(writer)
+
 	case protocol.SecurityType_LEGACY:
 		if request.Option.Has(protocol.RequestOptionChunkStream) {
 			auth := &crypto.AEADAuthenticator{
@@ -458,17 +468,17 @@ func (s *ServerSession) EncodeResponseBody(request *protocol.RequestHeader, writ
 			}
 			return crypto.NewAuthenticationWriter(auth, sizeParser, s.responseWriter, request.Command.TransferType(), padding)
 		}
-
 		return &buf.SequentialWriter{Writer: s.responseWriter}
+
 	case protocol.SecurityType_AES128_GCM:
 		aead := crypto.NewAesGcm(s.responseBodyKey[:])
-
 		auth := &crypto.AEADAuthenticator{
 			AEAD:                    aead,
 			NonceGenerator:          GenerateChunkNonce(s.responseBodyIV[:], uint32(aead.NonceSize())),
 			AdditionalDataGenerator: crypto.GenerateEmptyBytes(),
 		}
 		return crypto.NewAuthenticationWriter(auth, sizeParser, writer, request.Command.TransferType(), padding)
+
 	case protocol.SecurityType_CHACHA20_POLY1305:
 		aead, _ := chacha20poly1305.New(GenerateChacha20Poly1305Key(s.responseBodyKey[:]))
 
@@ -478,6 +488,7 @@ func (s *ServerSession) EncodeResponseBody(request *protocol.RequestHeader, writ
 			AdditionalDataGenerator: crypto.GenerateEmptyBytes(),
 		}
 		return crypto.NewAuthenticationWriter(auth, sizeParser, writer, request.Command.TransferType(), padding)
+
 	default:
 		panic("Unknown security type.")
 	}

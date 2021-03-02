@@ -6,7 +6,7 @@ import (
 	"container/list"
 	"sync"
 
-	"v2ray.com/core/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
 )
 
 type SendingWindow struct {
@@ -315,13 +315,15 @@ func (w *SendingWorker) Flush(current uint32) {
 		return
 	}
 
-	cwnd := w.firstUnacknowledged + w.conn.Config.GetSendingInFlightSize()
-	if cwnd > w.remoteNextNumber {
-		cwnd = w.remoteNextNumber
+	cwnd := w.conn.Config.GetSendingInFlightSize()
+	if cwnd > w.remoteNextNumber-w.firstUnacknowledged {
+		cwnd = w.remoteNextNumber - w.firstUnacknowledged
 	}
-	if w.conn.Config.Congestion && cwnd > w.firstUnacknowledged+w.controlWindow {
-		cwnd = w.firstUnacknowledged + w.controlWindow
+	if w.conn.Config.Congestion && cwnd > w.controlWindow {
+		cwnd = w.controlWindow
 	}
+
+	cwnd *= 20 // magic
 
 	if !w.window.IsEmpty() {
 		w.window.Flush(current, w.conn.roundTrip.Timeout(), cwnd)

@@ -3,8 +3,8 @@ package command
 import (
 	"strings"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/features/routing"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/features/routing"
 )
 
 // routingContext is an wrapper of protobuf RoutingContext as implementation of routing.Context and routing.Route.
@@ -26,6 +26,13 @@ func (c routingContext) GetTargetIPs() []net.IP {
 
 func (c routingContext) GetTargetPort() net.Port {
 	return net.Port(c.RoutingContext.GetTargetPort())
+}
+
+// GetSkipDNSResolve is a mock implementation here to match the interface,
+// SkipDNSResolve is set from dns module, no use if coming from a protobuf object?
+// TODO: please confirm @Vigilans
+func (c routingContext) GetSkipDNSResolve() bool {
+	return false
 }
 
 // AsRoutingContext converts a protobuf RoutingContext into an implementation of routing.Context.

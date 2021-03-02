@@ -5,13 +5,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/uuid"
-	"v2ray.com/core/proxy/vless"
-	. "v2ray.com/core/proxy/vless/encoding"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/uuid"
+	"github.com/v2fly/v2ray-core/v4/proxy/vless"
+	. "github.com/v2fly/v2ray-core/v4/proxy/vless/encoding"
 )
 
 func toAccount(a *vless.Account) protocol.Account {
@@ -46,7 +46,7 @@ func TestRequestSerialization(t *testing.T) {
 	Validator := new(vless.Validator)
 	Validator.Add(user)
 
-	actualRequest, actualAddons, err, _ := DecodeRequestHeader(false, nil, &buffer, Validator)
+	actualRequest, actualAddons, _, err := DecodeRequestHeader(false, nil, &buffer, Validator)
 	common.Must(err)
 
 	if r := cmp.Diff(actualRequest, expectedRequest, cmp.AllowUnexported(protocol.ID{})); r != "" {
@@ -83,7 +83,7 @@ func TestInvalidRequest(t *testing.T) {
 	Validator := new(vless.Validator)
 	Validator.Add(user)
 
-	_, _, err, _ := DecodeRequestHeader(false, nil, &buffer, Validator)
+	_, _, _, err := DecodeRequestHeader(false, nil, &buffer, Validator)
 	if err == nil {
 		t.Error("nil error")
 	}
@@ -114,7 +114,7 @@ func TestMuxRequest(t *testing.T) {
 	Validator := new(vless.Validator)
 	Validator.Add(user)
 
-	actualRequest, actualAddons, err, _ := DecodeRequestHeader(false, nil, &buffer, Validator)
+	actualRequest, actualAddons, _, err := DecodeRequestHeader(false, nil, &buffer, Validator)
 	common.Must(err)
 
 	if r := cmp.Diff(actualRequest, expectedRequest, cmp.AllowUnexported(protocol.ID{})); r != "" {

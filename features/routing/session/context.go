@@ -3,9 +3,9 @@ package session
 import (
 	"context"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/features/routing"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/features/routing"
 )
 
 // Context is an implementation of routing.Context, which is a wrapper of context.context with session info.
@@ -107,6 +107,14 @@ func (ctx *Context) GetAttributes() map[string]string {
 		return nil
 	}
 	return ctx.Content.Attributes
+}
+
+// GetSkipDNSResolve implements routing.Context.
+func (ctx *Context) GetSkipDNSResolve() bool {
+	if ctx.Content == nil {
+		return false
+	}
+	return ctx.Content.SkipDNSResolve
 }
 
 // AsRoutingContext creates a context from context.context with session info.

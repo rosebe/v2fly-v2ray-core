@@ -2,25 +2,25 @@
 
 package freedom
 
-//go:generate go run v2ray.com/core/common/errors/errorgen
+//go:generate go run github.com/v2fly/v2ray-core/v4/common/errors/errorgen
 
 import (
 	"context"
 	"time"
 
-	"v2ray.com/core"
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/dice"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/retry"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/common/signal"
-	"v2ray.com/core/common/task"
-	"v2ray.com/core/features/dns"
-	"v2ray.com/core/features/policy"
-	"v2ray.com/core/transport"
-	"v2ray.com/core/transport/internet"
+	core "github.com/v2fly/v2ray-core/v4"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/dice"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/retry"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/common/signal"
+	"github.com/v2fly/v2ray-core/v4/common/task"
+	"github.com/v2fly/v2ray-core/v4/features/dns"
+	"github.com/v2fly/v2ray-core/v4/features/policy"
+	"github.com/v2fly/v2ray-core/v4/transport"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
 )
 
 func init() {
@@ -60,19 +60,26 @@ func (h *Handler) policy() policy.Session {
 }
 
 func (h *Handler) resolveIP(ctx context.Context, domain string, localAddr net.Address) net.Address {
-	var lookupFunc func(string) ([]net.IP, error) = h.dns.LookupIP
-
+	var option dns.IPOption = dns.IPOption{
+		IPv4Enable: true,
+		IPv6Enable: true,
+		FakeEnable: false,
+	}
 	if h.config.DomainStrategy == Config_USE_IP4 || (localAddr != nil && localAddr.Family().IsIPv4()) {
-		if lookupIPv4, ok := h.dns.(dns.IPv4Lookup); ok {
-			lookupFunc = lookupIPv4.LookupIPv4
+		option = dns.IPOption{
+			IPv4Enable: true,
+			IPv6Enable: false,
+			FakeEnable: false,
 		}
 	} else if h.config.DomainStrategy == Config_USE_IP6 || (localAddr != nil && localAddr.Family().IsIPv6()) {
-		if lookupIPv6, ok := h.dns.(dns.IPv6Lookup); ok {
-			lookupFunc = lookupIPv6.LookupIPv6
+		option = dns.IPOption{
+			IPv4Enable: false,
+			IPv6Enable: true,
+			FakeEnable: false,
 		}
 	}
 
-	ips, err := lookupFunc(domain)
+	ips, err := h.dns.LookupIP(domain, option)
 	if err != nil {
 		newError("failed to get IP address for domain ", domain).Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
@@ -123,7 +130,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 					Address: ip,
 					Port:    dialDest.Port,
 				}
-				newError("dialing to to ", dialDest).WriteToLog(session.ExportIDToError(ctx))
+				newError("dialing to ", dialDest).WriteToLog(session.ExportIDToError(ctx))
 			}
 		}
 
@@ -137,7 +144,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	if err != nil {
 		return newError("failed to open connection to ", destination).Base(err)
 	}
-	defer conn.Close() // nolint: errcheck
+	defer conn.Close()
 
 	plcy := h.policy()
 	ctx, cancel := context.WithCancel(ctx)

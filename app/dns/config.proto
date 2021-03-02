@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package v2ray.core.app.dns;
 option csharp_namespace = "V2Ray.Core.App.Dns";
-option go_package = "v2ray.com/core/app/dns";
+option go_package = "github.com/v2fly/v2ray-core/v4/app/dns";
 option java_package = "com.v2ray.core.app.dns";
 option java_multiple_files = true;
 
@@ -12,6 +12,7 @@ import "app/router/config.proto";
 
 message NameServer {
   v2ray.core.common.net.Endpoint address = 1;
+  bytes client_ip = 5;
 
   message PriorityDomain {
     DomainMatchingType type = 1;
@@ -68,4 +69,9 @@ message Config {
 
   // Tag is the inbound tag of DNS client.
   string tag = 6;
+
+  reserved 7;
+
+  // DisableCache Disable DNS cache
+  bool disableCache = 8;
 }

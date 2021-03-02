@@ -3,9 +3,9 @@
 package domainsocket
 
 import (
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/transport/internet"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
 )
 
 const protocolName = "domainsocket"
@@ -22,9 +22,7 @@ func (c *Config) GetUnixAddr() (*net.UnixAddr, error) {
 	if c.Abstract && c.Padding {
 		raw := []byte(path)
 		addr := make([]byte, sizeofSunPath)
-		for i, c := range raw {
-			addr[i] = c
-		}
+		copy(addr, raw)
 		path = string(addr)
 	}
 	return &net.UnixAddr{

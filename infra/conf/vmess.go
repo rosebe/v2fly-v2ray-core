@@ -6,11 +6,11 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
-	"v2ray.com/core/proxy/vmess"
-	"v2ray.com/core/proxy/vmess/inbound"
-	"v2ray.com/core/proxy/vmess/outbound"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/serial"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess/inbound"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess/outbound"
 )
 
 type VMessAccount struct {
@@ -67,9 +67,6 @@ type VMessDefaultConfig struct {
 func (c *VMessDefaultConfig) Build() *inbound.DefaultConfig {
 	config := new(inbound.DefaultConfig)
 	config.AlterId = uint32(c.AlterIDs)
-	if config.AlterId == 0 {
-		config.AlterId = 32
-	}
 	config.Level = uint32(c.Level)
 	return config
 }

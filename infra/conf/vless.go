@@ -8,12 +8,12 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
-	"v2ray.com/core/proxy/vless"
-	"v2ray.com/core/proxy/vless/inbound"
-	"v2ray.com/core/proxy/vless/outbound"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/serial"
+	"github.com/v2fly/v2ray-core/v4/proxy/vless"
+	"github.com/v2fly/v2ray-core/v4/proxy/vless/inbound"
+	"github.com/v2fly/v2ray-core/v4/proxy/vless/outbound"
 )
 
 type VLessInboundFallback struct {
@@ -33,12 +33,7 @@ type VLessInboundConfig struct {
 
 // Build implements Buildable
 func (c *VLessInboundConfig) Build() (proto.Message, error) {
-
 	config := new(inbound.Config)
-
-	if len(c.Clients) == 0 {
-		//return nil, newError(`VLESS settings: "clients" is empty`)
-	}
 	config.Clients = make([]*protocol.User, len(c.Clients))
 	for idx, rawUser := range c.Clients {
 		user := new(protocol.User)
@@ -48,12 +43,6 @@ func (c *VLessInboundConfig) Build() (proto.Message, error) {
 		account := new(vless.Account)
 		if err := json.Unmarshal(rawUser, account); err != nil {
 			return nil, newError(`VLESS clients: invalid user`).Base(err)
-		}
-
-		switch account.Flow {
-		case "", "xtls-rprx-origin", "xtls-rprx-direct":
-		default:
-			return nil, newError(`VLESS clients: "flow" doesn't support "` + account.Flow + `" in this version`)
 		}
 
 		if account.Encryption != "" {
@@ -104,8 +93,8 @@ func (c *VLessInboundConfig) Build() (proto.Message, error) {
 				switch fb.Dest[0] {
 				case '@', '/':
 					fb.Type = "unix"
-					if fb.Dest[0] == '@' && len(fb.Dest) > 1 && fb.Dest[1] == '@' && runtime.GOOS == "linux" {
-						fullAddr := make([]byte, len(syscall.RawSockaddrUnix{}.Path)) // may need padding to work in front of haproxy
+					if fb.Dest[0] == '@' && len(fb.Dest) > 1 && fb.Dest[1] == '@' && (runtime.GOOS == "linux" || runtime.GOOS == "android") {
+						fullAddr := make([]byte, len(syscall.RawSockaddrUnix{}.Path)) // may need padding to work with haproxy
 						copy(fullAddr, fb.Dest[1:])
 						fb.Dest = string(fullAddr)
 					}
@@ -142,7 +131,6 @@ type VLessOutboundConfig struct {
 
 // Build implements Buildable
 func (c *VLessOutboundConfig) Build() (proto.Message, error) {
-
 	config := new(outbound.Config)
 
 	if len(c.Vnext) == 0 {
@@ -169,12 +157,6 @@ func (c *VLessOutboundConfig) Build() (proto.Message, error) {
 			account := new(vless.Account)
 			if err := json.Unmarshal(rawUser, account); err != nil {
 				return nil, newError(`VLESS users: invalid user`).Base(err)
-			}
-
-			switch account.Flow {
-			case "", "xtls-rprx-origin", "xtls-rprx-origin-udp443", "xtls-rprx-direct", "xtls-rprx-direct-udp443":
-			default:
-				return nil, newError(`VLESS users: "flow" doesn't support "` + account.Flow + `" in this version`)
 			}
 
 			if account.Encryption != "none" {

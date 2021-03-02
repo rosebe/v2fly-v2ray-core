@@ -5,13 +5,15 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	. "v2ray.com/core/app/router"
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/features/outbound"
-	routing_session "v2ray.com/core/features/routing/session"
-	"v2ray.com/core/testing/mocks"
+
+	. "github.com/v2fly/v2ray-core/v4/app/router"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/features/dns"
+	"github.com/v2fly/v2ray-core/v4/features/outbound"
+	routing_session "github.com/v2fly/v2ray-core/v4/features/routing/session"
+	"github.com/v2fly/v2ray-core/v4/testing/mocks"
 )
 
 type mockOutboundManager struct {
@@ -34,17 +36,17 @@ func TestSimpleRouter(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	defer mockCtl.Finish()
 
-	mockDns := mocks.NewDNSClient(mockCtl)
+	mockDNS := mocks.NewDNSClient(mockCtl)
 	mockOhm := mocks.NewOutboundManager(mockCtl)
 	mockHs := mocks.NewOutboundHandlerSelector(mockCtl)
 
 	r := new(Router)
-	common.Must(r.Init(config, mockDns, &mockOutboundManager{
+	common.Must(r.Init(config, mockDNS, &mockOutboundManager{
 		Manager:         mockOhm,
 		HandlerSelector: mockHs,
 	}))
 
-	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2ray.com"), 80)})
+	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2fly.org"), 80)})
 	route, err := r.PickRoute(routing_session.AsRoutingContext(ctx))
 	common.Must(err)
 	if tag := route.GetOutboundTag(); tag != "test" {
@@ -73,19 +75,19 @@ func TestSimpleBalancer(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	defer mockCtl.Finish()
 
-	mockDns := mocks.NewDNSClient(mockCtl)
+	mockDNS := mocks.NewDNSClient(mockCtl)
 	mockOhm := mocks.NewOutboundManager(mockCtl)
 	mockHs := mocks.NewOutboundHandlerSelector(mockCtl)
 
 	mockHs.EXPECT().Select(gomock.Eq([]string{"test-"})).Return([]string{"test"})
 
 	r := new(Router)
-	common.Must(r.Init(config, mockDns, &mockOutboundManager{
+	common.Must(r.Init(config, mockDNS, &mockOutboundManager{
 		Manager:         mockOhm,
 		HandlerSelector: mockHs,
 	}))
 
-	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2ray.com"), 80)})
+	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2fly.org"), 80)})
 	route, err := r.PickRoute(routing_session.AsRoutingContext(ctx))
 	common.Must(err)
 	if tag := route.GetOutboundTag(); tag != "test" {
@@ -114,13 +116,17 @@ func TestIPOnDemand(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	defer mockCtl.Finish()
 
-	mockDns := mocks.NewDNSClient(mockCtl)
-	mockDns.EXPECT().LookupIP(gomock.Eq("v2ray.com")).Return([]net.IP{{192, 168, 0, 1}}, nil).AnyTimes()
+	mockDNS := mocks.NewDNSClient(mockCtl)
+	mockDNS.EXPECT().LookupIP(gomock.Eq("v2fly.org"), dns.IPOption{
+		IPv4Enable: true,
+		IPv6Enable: true,
+		FakeEnable: false,
+	}).Return([]net.IP{{192, 168, 0, 1}}, nil).AnyTimes()
 
 	r := new(Router)
-	common.Must(r.Init(config, mockDns, nil))
+	common.Must(r.Init(config, mockDNS, nil))
 
-	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2ray.com"), 80)})
+	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2fly.org"), 80)})
 	route, err := r.PickRoute(routing_session.AsRoutingContext(ctx))
 	common.Must(err)
 	if tag := route.GetOutboundTag(); tag != "test" {
@@ -149,13 +155,17 @@ func TestIPIfNonMatchDomain(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	defer mockCtl.Finish()
 
-	mockDns := mocks.NewDNSClient(mockCtl)
-	mockDns.EXPECT().LookupIP(gomock.Eq("v2ray.com")).Return([]net.IP{{192, 168, 0, 1}}, nil).AnyTimes()
+	mockDNS := mocks.NewDNSClient(mockCtl)
+	mockDNS.EXPECT().LookupIP(gomock.Eq("v2fly.org"), dns.IPOption{
+		IPv4Enable: true,
+		IPv6Enable: true,
+		FakeEnable: false,
+	}).Return([]net.IP{{192, 168, 0, 1}}, nil).AnyTimes()
 
 	r := new(Router)
-	common.Must(r.Init(config, mockDns, nil))
+	common.Must(r.Init(config, mockDNS, nil))
 
-	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2ray.com"), 80)})
+	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.DomainAddress("v2fly.org"), 80)})
 	route, err := r.PickRoute(routing_session.AsRoutingContext(ctx))
 	common.Must(err)
 	if tag := route.GetOutboundTag(); tag != "test" {
@@ -184,10 +194,10 @@ func TestIPIfNonMatchIP(t *testing.T) {
 	mockCtl := gomock.NewController(t)
 	defer mockCtl.Finish()
 
-	mockDns := mocks.NewDNSClient(mockCtl)
+	mockDNS := mocks.NewDNSClient(mockCtl)
 
 	r := new(Router)
-	common.Must(r.Init(config, mockDns, nil))
+	common.Must(r.Init(config, mockDNS, nil))
 
 	ctx := session.ContextWithOutbound(context.Background(), &session.Outbound{Target: net.TCPDestination(net.LocalHostIP, 80)})
 	route, err := r.PickRoute(routing_session.AsRoutingContext(ctx))

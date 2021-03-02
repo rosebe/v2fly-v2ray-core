@@ -2,27 +2,27 @@
 
 package outbound
 
-//go:generate go run v2ray.com/core/common/errors/errorgen
+//go:generate go run github.com/v2fly/v2ray-core/v4/common/errors/errorgen
 
 import (
 	"context"
 	"time"
 
-	"v2ray.com/core"
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/platform"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/retry"
-	"v2ray.com/core/common/session"
-	"v2ray.com/core/common/signal"
-	"v2ray.com/core/common/task"
-	"v2ray.com/core/features/policy"
-	"v2ray.com/core/proxy/vmess"
-	"v2ray.com/core/proxy/vmess/encoding"
-	"v2ray.com/core/transport"
-	"v2ray.com/core/transport/internet"
+	core "github.com/v2fly/v2ray-core/v4"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/platform"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/retry"
+	"github.com/v2fly/v2ray-core/v4/common/session"
+	"github.com/v2fly/v2ray-core/v4/common/signal"
+	"github.com/v2fly/v2ray-core/v4/common/task"
+	"github.com/v2fly/v2ray-core/v4/features/policy"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess"
+	"github.com/v2fly/v2ray-core/v4/proxy/vmess/encoding"
+	"github.com/v2fly/v2ray-core/v4/transport"
+	"github.com/v2fly/v2ray-core/v4/transport/internet"
 )
 
 // Handler is an outbound connection handler for VMess protocol.
@@ -71,7 +71,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	if err != nil {
 		return newError("failed to find an available destination").Base(err).AtWarning()
 	}
-	defer conn.Close() //nolint: errcheck
+	defer conn.Close()
 
 	outbound := session.OutboundFromContext(ctx)
 	if outbound == nil || !outbound.Target.IsValid() {
@@ -114,11 +114,11 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 	output := link.Writer
 
 	isAEAD := false
-	if !aead_disabled && len(account.AlterIDs) == 0 {
+	if !aeadDisabled && len(account.AlterIDs) == 0 {
 		isAEAD = true
 	}
 
-	session := encoding.NewClientSession(isAEAD, protocol.DefaultIDHash, ctx)
+	session := encoding.NewClientSession(ctx, isAEAD, protocol.DefaultIDHash)
 	sessionPolicy := h.policyManager.ForLevel(request.User.Level)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -179,7 +179,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 
 var (
 	enablePadding = false
-	aead_disabled = false
+	aeadDisabled  = false
 )
 
 func shouldEnablePadding(s protocol.SecurityType) bool {
@@ -198,8 +198,8 @@ func init() {
 		enablePadding = true
 	}
 
-	aeadDisabled := platform.NewEnvFlag("v2ray.vmess.aead.disabled").GetValue(func() string { return defaultFlagValue })
-	if aeadDisabled == "true" {
-		aead_disabled = true
+	isAeadDisabled := platform.NewEnvFlag("v2ray.vmess.aead.disabled").GetValue(func() string { return defaultFlagValue })
+	if isAeadDisabled == "true" {
+		aeadDisabled = true
 	}
 }

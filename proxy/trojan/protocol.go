@@ -4,24 +4,23 @@ import (
 	"encoding/binary"
 	"io"
 
-	"v2ray.com/core/common/buf"
-	"v2ray.com/core/common/net"
-	"v2ray.com/core/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/buf"
+	"github.com/v2fly/v2ray-core/v4/common/net"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
 )
 
 var (
 	crlf = []byte{'\r', '\n'}
 
 	addrParser = protocol.NewAddressParser(
-		protocol.AddressFamilyByte(0x01, net.AddressFamilyIPv4),   // nolint: gomnd
-		protocol.AddressFamilyByte(0x04, net.AddressFamilyIPv6),   // nolint: gomnd
-		protocol.AddressFamilyByte(0x03, net.AddressFamilyDomain), // nolint: gomnd
+		protocol.AddressFamilyByte(0x01, net.AddressFamilyIPv4),
+		protocol.AddressFamilyByte(0x04, net.AddressFamilyIPv6),
+		protocol.AddressFamilyByte(0x03, net.AddressFamilyDomain),
 	)
 )
 
 const (
-	maxLength = 8192
-
+	maxLength       = 8192
 	commandTCP byte = 1
 	commandUDP byte = 3
 )

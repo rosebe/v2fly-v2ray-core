@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package v2ray.core.app.commander;
 option csharp_namespace = "V2Ray.Core.App.Commander";
-option go_package = "v2ray.com/core/app/commander";
+option go_package = "github.com/v2fly/v2ray-core/v4/app/commander";
 option java_package = "com.v2ray.core.app.commander";
 option java_multiple_files = true;
 
@@ -16,3 +16,6 @@ message Config {
   // interface.
   repeated v2ray.core.common.serial.TypedMessage service = 2;
 }
+
+// ReflectionConfig is the placeholder config for ReflectionService.
+message ReflectionConfig {}

@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 
 	"github.com/golang/protobuf/proto"
-	"v2ray.com/core/common/protocol"
-	"v2ray.com/core/common/serial"
-	"v2ray.com/core/proxy/socks"
+
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common/serial"
+	"github.com/v2fly/v2ray-core/v4/proxy/socks"
 )
 
 type SocksAccount struct {
@@ -43,7 +44,7 @@ func (v *SocksServerConfig) Build() (proto.Message, error) {
 	case AuthMethodUserPass:
 		config.AuthType = socks.AuthType_PASSWORD
 	default:
-		//newError("unknown socks auth method: ", v.AuthMethod, ". Default to noauth.").AtWarning().WriteToLog()
+		// newError("unknown socks auth method: ", v.AuthMethod, ". Default to noauth.").AtWarning().WriteToLog()
 		config.AuthType = socks.AuthType_NO_AUTH
 	}
 

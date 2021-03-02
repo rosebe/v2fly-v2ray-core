@@ -3,10 +3,10 @@ package trojan
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	fmt "fmt"
+	"fmt"
 
-	"v2ray.com/core/common"
-	"v2ray.com/core/common/protocol"
+	"github.com/v2fly/v2ray-core/v4/common"
+	"github.com/v2fly/v2ray-core/v4/common/protocol"
 )
 
 // MemoryAccount is an account type converted from Account.

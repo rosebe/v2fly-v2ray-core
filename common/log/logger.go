@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"v2ray.com/core/common/platform"
-	"v2ray.com/core/common/signal/done"
-	"v2ray.com/core/common/signal/semaphore"
+	"github.com/v2fly/v2ray-core/v4/common/platform"
+	"github.com/v2fly/v2ray-core/v4/common/signal/done"
+	"github.com/v2fly/v2ray-core/v4/common/signal/semaphore"
 )
 
 // Writer is the interface for writing logs.
@@ -48,14 +48,14 @@ func (l *generalLogger) run() {
 	if logger == nil {
 		return
 	}
-	defer logger.Close() // nolint: errcheck
+	defer logger.Close()
 
 	for {
 		select {
 		case <-l.done.Wait():
 			return
 		case msg := <-l.buffer:
-			logger.Write(msg.String() + platform.LineSeparator()) // nolint: errcheck
+			logger.Write(msg.String() + platform.LineSeparator())
 			dataWritten = true
 		case <-ticker.C:
 			if !dataWritten {

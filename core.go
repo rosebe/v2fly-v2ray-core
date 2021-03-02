@@ -9,16 +9,16 @@
 // connections.
 package core
 
-//go:generate go run v2ray.com/core/common/errors/errorgen
+//go:generate go run github.com/v2fly/v2ray-core/v4/common/errors/errorgen
 
 import (
 	"runtime"
 
-	"v2ray.com/core/common/serial"
+	"github.com/v2fly/v2ray-core/v4/common/serial"
 )
 
 var (
-	version  = "4.31.0"
+	version  = "4.34.0"
 	build    = "Custom"
 	codename = "V2Fly, a community-driven edition of V2Ray."
 	intro    = "A unified platform for anti-censorship."
